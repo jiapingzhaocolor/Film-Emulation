@@ -1,0 +1,51 @@
+
+name: build-ofx
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone OpenFX support
+        run: |
+          git clone --depth 1 https://github.com/ofxa/openfx external/openfx
+
+      - name: Configure (CMake)
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Package .ofx.bundle
+        shell: bash
+        run: |
+          set -e
+          BUNDLE="OpenDRTFilmPipeline.ofx.bundle"
+          rm -rf "$BUNDLE"
+          mkdir -p "$BUNDLE/Contents"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            mkdir -p "$BUNDLE/Contents/Win64"
+            cp build/Release/OpenDRTFilmPipeline.ofx "$BUNDLE/Contents/Win64/" || cp build/OpenDRTFilmPipeline.ofx "$BUNDLE/Contents/Win64/"
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            mkdir -p "$BUNDLE/Contents/MacOS"
+            cp build/OpenDRTFilmPipeline.ofx "$BUNDLE/Contents/MacOS/"
+          else
+            mkdir -p "$BUNDLE/Contents/Linux-x86-64"
+            cp build/OpenDRTFilmPipeline.ofx "$BUNDLE/Contents/Linux-x86-64/"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenDRTFilmPipeline-${{ matrix.os }}
+          path: OpenDRTFilmPipeline.ofx.bundle
